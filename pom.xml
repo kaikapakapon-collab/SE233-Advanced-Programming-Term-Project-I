@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>th.ac.cmu.se233</groupId>
@@ -11,16 +11,14 @@
     <name>SE233 Vector Graphics Conversion Utility</name>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javafx.version>21.0.5</javafx.version>
+        <javafx.version>21.0.6</javafx.version>
         <batik.version>1.18</batik.version>
         <junit.version>5.10.2</junit.version>
         <main.class>se233.project1.Launcher</main.class>
     </properties>
 
     <dependencies>
-        <!-- ===== JavaFX ===== -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -31,14 +29,12 @@
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
         </dependency>
-        <!-- SwingFXUtils: แปลง BufferedImage <-> javafx.scene.image.Image -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- ===== SVG rendering สำหรับ preview (SVG -> PNG/BufferedImage) ===== -->
         <dependency>
             <groupId>org.apache.xmlgraphics</groupId>
             <artifactId>batik-transcoder</artifactId>
@@ -50,14 +46,12 @@
             <version>${batik.version}</version>
         </dependency>
 
-        <!-- ===== Logging ===== -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.13</version>
         </dependency>
 
-        <!-- ===== Test ===== -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -73,7 +67,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>${maven.compiler.release}</release>
+                    <source>21</source>
+                    <target>21</target>
                 </configuration>
             </plugin>
 
@@ -83,7 +78,6 @@
                 <version>3.2.5</version>
             </plugin>
 
-            <!-- รันด้วย: mvn clean javafx:run -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
