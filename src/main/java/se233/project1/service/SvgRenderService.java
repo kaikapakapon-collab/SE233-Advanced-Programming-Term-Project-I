@@ -7,7 +7,7 @@ import org.apache.batik.transcoder.TranscoderException;
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.TranscoderOutput;
 import org.apache.batik.transcoder.image.ImageTranscoder;
-import th.ac.cmu.se233.vectorizer.exception.ConversionException;
+import se233.project1.exception.ConversionException;
 
 import java.awt.image.BufferedImage;
 import java.io.StringReader;

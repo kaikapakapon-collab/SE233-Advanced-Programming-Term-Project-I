@@ -27,6 +27,16 @@ public final class TempFileManager {
         }
     }
 
+    /** Deletes the whole temp root right now (called when the application closes). */
+    public static void cleanup() {
+        Path toDelete;
+        synchronized (LOCK) {
+            toDelete = root;
+            root = null;
+        }
+        deleteRecursivelyQuietly(toDelete);
+    }
+
     /** Creates a fresh uniquely named directory below the temp root. */
     public static Path createSubDir(String prefix) throws IOException {
         return Files.createTempDirectory(root(), prefix);

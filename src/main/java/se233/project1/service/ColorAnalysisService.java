@@ -1,7 +1,7 @@
 package se233.project1.service;
 
-import th.ac.cmu.se233.vectorizer.model.ConversionSettings;
-import th.ac.cmu.se233.vectorizer.model.QuantizedImage;
+import se233.project1.model.ConversionSettings;
+import se233.project1.model.QuantizedImage;
 
 import java.awt.image.BufferedImage;
 

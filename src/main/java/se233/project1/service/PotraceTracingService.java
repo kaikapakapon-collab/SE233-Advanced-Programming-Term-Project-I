@@ -1,13 +1,13 @@
 package se233.project1.service;
 
-import th.ac.cmu.se233.vectorizer.exception.ConversionException;
-import th.ac.cmu.se233.vectorizer.exception.ToolNotFoundException;
-import th.ac.cmu.se233.vectorizer.model.BinaryMask;
-import th.ac.cmu.se233.vectorizer.model.ConversionSettings;
-import th.ac.cmu.se233.vectorizer.model.DetailLevel;
-import th.ac.cmu.se233.vectorizer.model.QuantizedImage;
-import th.ac.cmu.se233.vectorizer.util.NativeToolLocator;
-import th.ac.cmu.se233.vectorizer.util.TempFileManager;
+import se233.project1.exception.ConversionException;
+import se233.project1.exception.ToolNotFoundException;
+import se233.project1.model.BinaryMask;
+import se233.project1.model.ConversionSettings;
+import se233.project1.model.DetailLevel;
+import se233.project1.model.QuantizedImage;
+import se233.project1.util.NativeToolLocator;
+import se233.project1.util.TempFileManager;
 
 import java.awt.RenderingHints;
 import java.awt.Graphics2D;

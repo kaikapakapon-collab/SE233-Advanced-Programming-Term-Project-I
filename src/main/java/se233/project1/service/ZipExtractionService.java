@@ -1,6 +1,6 @@
 package se233.project1.service;
 
-import th.ac.cmu.se233.vectorizer.exception.ArchiveException;
+import se233.project1.exception.ArchiveException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,8 +119,6 @@ public final class ZipExtractionService {
                 ZipExtractionService::naturalCompare));
         return extracted;
     }
-
-    // ------------------------------------------------------------------
 
     private static ZipFile openZip(Path file, String zipName) throws ArchiveException {
         List<Charset> charsets = new ArrayList<>();

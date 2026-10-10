@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="root" styleClass="editor-root"
+            xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="se233.project1.controller.EditorController">
+
+    <!-- TOP PANEL: exactly three controls -->
+    <top>
+        <HBox styleClass="top-panel" spacing="8" alignment="CENTER_LEFT">
+            <Button fx:id="zoomInButton" text="Zoom In" styleClass="tool-button" onAction="#onZoomIn"/>
+            <Button fx:id="zoomOutButton" text="Zoom Out" styleClass="tool-button" onAction="#onZoomOut"/>
+            <Button fx:id="zoomFitButton" text="Zoom to Fit" styleClass="tool-button" onAction="#onZoomFit"/>
+        </HBox>
+    </top>
+
+    <!-- CENTER: original and vectorized result side by side -->
+    <center>
+        <SplitPane dividerPositions="0.5" styleClass="preview-split">
+            <VBox styleClass="preview-column">
+                <Label text="Original Image" styleClass="pane-title" maxWidth="Infinity"/>
+                <ScrollPane fx:id="originalScroll" styleClass="preview-scroll" VBox.vgrow="ALWAYS"
+                            fitToWidth="true" fitToHeight="true" pannable="true">
+                    <StackPane fx:id="originalContent">
+                        <ImageView fx:id="originalView"/>
+                    </StackPane>
+                </ScrollPane>
+                <Label fx:id="originalCaption" styleClass="caption" maxWidth="Infinity"/>
+            </VBox>
+            <VBox styleClass="preview-column">
+                <Label text="Vectorized Result" styleClass="pane-title" maxWidth="Infinity"/>
+                <StackPane VBox.vgrow="ALWAYS">
+                    <ScrollPane fx:id="vectorScroll" styleClass="preview-scroll"
+                                fitToWidth="true" fitToHeight="true" pannable="true">
+                        <StackPane fx:id="vectorContent">
+                            <ImageView fx:id="vectorView"/>
+                        </StackPane>
+                    </ScrollPane>
+                    <VBox fx:id="vectorOverlay" styleClass="overlay" alignment="CENTER" spacing="10"
+                          mouseTransparent="true" visible="false" managed="false">
+                        <ProgressIndicator fx:id="overlayIndicator" prefWidth="46" prefHeight="46"/>
+                        <Label fx:id="overlayLabel" styleClass="overlay-label" wrapText="true"/>
+                    </VBox>
+                </StackPane>
+                <Label fx:id="vectorCaption" styleClass="caption" maxWidth="Infinity"/>
+            </VBox>
+        </SplitPane>
+    </center>
+
+    <!-- RIGHT PANEL: configuration + export -->
+    <right>
+        <VBox styleClass="right-panel" spacing="16" prefWidth="280" minWidth="260">
+            <Button fx:id="exportButton" text="Export All" styleClass="primary-button"
+                    maxWidth="Infinity" onAction="#onExportAll"/>
+
+            <VBox fx:id="configBox" spacing="14">
+                <Label text="Improve result" styleClass="section-title"/>
+
+                <VBox spacing="6">
+                    <Label text="Detail level" styleClass="field-label"/>
+                    <HBox styleClass="segmented" spacing="4">
+                        <ToggleButton fx:id="detailLowButton" text="Low" styleClass="segment"
+                                      HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <ToggleButton fx:id="detailMediumButton" text="Medium" styleClass="segment"
+                                      HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <ToggleButton fx:id="detailHighButton" text="High" styleClass="segment"
+                                      HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                    </HBox>
+                </VBox>
+
+                <VBox spacing="6">
+                    <Label text="Colors" styleClass="field-label"/>
+                    <HBox styleClass="segmented" spacing="4">
+                        <ToggleButton fx:id="colorsUnlimitedButton" text="Unlimited" styleClass="segment"
+                                      HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <ToggleButton fx:id="colorsCustomButton" text="Custom" styleClass="segment"
+                                      HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                    </HBox>
+                    <HBox fx:id="customColorsBox" spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Number of colors"/>
+                        <Spinner fx:id="colorCountSpinner" editable="false" prefWidth="84"/>
+                    </HBox>
+                    <Label fx:id="colorHintLabel" styleClass="hint"/>
+                </VBox>
+
+                <CheckBox fx:id="removeBackgroundCheck" text="Remove background"/>
+                <CheckBox fx:id="applyToAllCheck" text="Apply these settings to all images"/>
+            </VBox>
+
+            <Region VBox.vgrow="ALWAYS"/>
+
+            <VBox spacing="6">
+                <Label text="Image" styleClass="field-label"/>
+                <HBox spacing="8" alignment="CENTER">
+                    <Button fx:id="backButton" text="← Back" styleClass="secondary-button" onAction="#onBack"/>
+                    <Label fx:id="positionLabel" styleClass="position-label" alignment="CENTER"
+                           HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                    <Button fx:id="nextButton" text="Next →" styleClass="secondary-button" onAction="#onNext"/>
+                </HBox>
+            </VBox>
+        </VBox>
+    </right>
+
+    <!-- BOTTOM: status + progress of background work -->
+    <bottom>
+        <HBox styleClass="status-bar" spacing="12" alignment="CENTER_LEFT">
+            <Label fx:id="statusLabel" text="Ready"/>
+            <ProgressBar fx:id="progressBar" prefWidth="240" visible="false" managed="false"/>
+            <Label fx:id="modeLabel" styleClass="mode-badge" visible="false" managed="false"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="cancelButton" text="Cancel export" styleClass="secondary-button"
+                    visible="false" managed="false" onAction="#onCancelExport"/>
+            <Button fx:id="newBatchButton" text="New batch" styleClass="secondary-button" onAction="#onNewBatch"/>
+        </HBox>
+    </bottom>
+</BorderPane>

@@ -1,8 +1,8 @@
 package se233.project1.task;
 
-import th.ac.cmu.se233.vectorizer.model.ColorMode;
-import th.ac.cmu.se233.vectorizer.model.ConversionSettings;
-import th.ac.cmu.se233.vectorizer.model.DetailLevel;
+import se233.project1.model.ColorMode;
+import se233.project1.model.ConversionSettings;
+import se233.project1.model.DetailLevel;
 
 import java.util.Collection;
 import java.util.Objects;

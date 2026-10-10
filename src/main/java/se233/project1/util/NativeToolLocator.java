@@ -1,6 +1,6 @@
 package se233.project1.util;
 
-import th.ac.cmu.se233.vectorizer.exception.ToolNotFoundException;
+import se233.project1.exception.ToolNotFoundException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,7 +26,7 @@ public final class NativeToolLocator {
 
     public static final String OVERRIDE_PROPERTY = "potrace.path";
     public static final String OVERRIDE_ENV = "POTRACE_PATH";
-    private static final String RESOURCE_ROOT = "/th/ac/cmu/se233/vectorizer/bin/";
+    private static final String RESOURCE_ROOT = "/se233/project1/bin/";
 
     private Path cached;
 

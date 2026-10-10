@@ -1,6 +1,6 @@
 package se233.project1.service;
 
-import th.ac.cmu.se233.vectorizer.exception.CorruptedImageException;
+import se233.project1.exception.CorruptedImageException;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
