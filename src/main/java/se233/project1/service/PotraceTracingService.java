@@ -1,4 +1,3 @@
-
 package se233.project1.service;
 
 import se233.project1.exception.ConversionException;
@@ -33,16 +32,29 @@ public final class PotraceTracingService implements TracingService {
     }
 
     private static final long TIMEOUT_SECONDS = 120;
+
     private static final Pattern SVG_VIEWBOX =
-            Pattern.compile("<svg\\b[^>]*?viewBox=\"([^\"]+)\"", Pattern.DOTALL);
+            Pattern.compile(
+                    "<svg\\b[^>]*?viewBox=\"([^\"]+)\"",
+                    Pattern.DOTALL
+            );
+
     private static final Pattern GROUP =
-            Pattern.compile("<g\\b([^>]*)>(.*?)</g>", Pattern.DOTALL);
+            Pattern.compile(
+                    "<g\\b([^>]*)>(.*?)</g>",
+                    Pattern.DOTALL
+            );
+
     private static final Pattern FILL_ATTR =
             Pattern.compile("fill=\"#[0-9a-fA-F]{6}\"");
 
     private final NativeToolLocator locator;
-    private final ColorQuantizer quantizer = new ColorQuantizer();
-    private final ColorAnalysisService analysis = new ColorAnalysisService();
+
+    private final ColorQuantizer quantizer =
+            new ColorQuantizer();
+
+    private final ColorAnalysisService analysis =
+            new ColorAnalysisService();
 
     public PotraceTracingService() {
         this(new NativeToolLocator());
@@ -52,22 +64,35 @@ public final class PotraceTracingService implements TracingService {
         this.locator = Objects.requireNonNull(locator, "locator");
     }
 
-    private record LayerResult(String viewBox, String groupMarkup) {
+    private record LayerResult(
+            String viewBox,
+            String groupMarkup
+    ) {
     }
 
     @Override
-    public String trace(BufferedImage source, ConversionSettings settings)
-            throws ConversionException {
+    public String trace(
+            BufferedImage source,
+            ConversionSettings settings
+    ) throws ConversionException {
+
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(settings, "settings");
 
         Path potrace = locator.locatePotrace();
         DetailLevel detail = settings.detail();
 
-        BufferedImage work = downscaleIfNeeded(source, detail.maxDimension());
+        BufferedImage work =
+                downscaleIfNeeded(
+                        source,
+                        detail.maxDimension()
+                );
+
         checkCancelled();
 
-        boolean sourceHasTransparency = hasTransparentPixels(work);
+        boolean sourceHasTransparency =
+                hasTransparentPixels(work);
+
         QuantizedImage quantized = quantizer.quantize(
                 work,
                 settings.paletteSize(),
@@ -75,21 +100,28 @@ public final class PotraceTracingService implements TracingService {
         );
 
         boolean backgroundRemoved = false;
+
         if (settings.removeBackground()
                 && quantized.transparentRatio()
                 < ColorAnalysisService.TRANSPARENCY_THRESHOLD) {
+
             int bg = analysis.findBackgroundIndex(quantized);
-            if (bg >= 0) {
-                quantized = quantized.moveToFront(bg);
-                backgroundRemoved = true;
+
+            if (bg < 0) {
+                bg = 0; // หาสีขอบไม่ได้ ใช้สีที่มีพื้นที่มากที่สุดเป็นพื้นหลังแทน
             }
+
+            quantized = quantized.moveToFront(bg);
+            backgroundRemoved = true;
         }
 
         checkCancelled();
 
         Path tempDir = null;
+
         try {
             tempDir = TempFileManager.createSubDir("trace-");
+
             return buildSvg(
                     potrace,
                     tempDir,
@@ -100,16 +132,20 @@ public final class PotraceTracingService implements TracingService {
                     source.getHeight(),
                     settings.removeBackground()
             );
+
         } catch (IOException e) {
             throw new ConversionException(
-                    "I/O error while tracing: " + e.getMessage(), e
+                    "I/O error while tracing: " + e.getMessage(),
+                    e
             );
         } finally {
             TempFileManager.deleteRecursivelyQuietly(tempDir);
         }
     }
 
-    private static boolean hasTransparentPixels(BufferedImage image) {
+    private static boolean hasTransparentPixels(
+            BufferedImage image
+    ) {
         if (!image.getColorModel().hasAlpha()) {
             return false;
         }
@@ -121,6 +157,7 @@ public final class PotraceTracingService implements TracingService {
                 }
             }
         }
+
         return false;
     }
 
@@ -150,10 +187,15 @@ public final class PotraceTracingService implements TracingService {
 
         List<LayerResult> layers = new ArrayList<>();
 
-        for (int layer = firstTracedLayer; layer < q.paletteSize(); layer++) {
+        for (int layer = firstTracedLayer;
+             layer < q.paletteSize();
+             layer++) {
+
             checkCancelled();
 
-            BinaryMask mask = quantizer.stackedMask(q, layer);
+            BinaryMask mask =
+                    quantizer.stackedMask(q, layer);
+
             if (mask.isEmpty()) {
                 continue;
             }
@@ -172,7 +214,8 @@ public final class PotraceTracingService implements TracingService {
             }
         }
 
-        String viewBox = "0 0 " + q.width() + " " + q.height();
+        String viewBox =
+                "0 0 " + q.width() + " " + q.height();
 
         for (LayerResult r : layers) {
             if (r.viewBox() != null) {
@@ -181,12 +224,18 @@ public final class PotraceTracingService implements TracingService {
             }
         }
 
-        String[] vb = viewBox.trim().split("[\\s,]+");
+        String[] vb =
+                viewBox.trim().split("[\\s,]+");
 
         StringBuilder svg = new StringBuilder(4096);
 
-        svg.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n");
-        svg.append("<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"")
+        svg.append(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
+        );
+
+        svg.append(
+                        "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\""
+                )
                 .append(originalWidth)
                 .append("\" height=\"")
                 .append(originalHeight)
@@ -217,6 +266,7 @@ public final class PotraceTracingService implements TracingService {
         }
 
         svg.append("</svg>\n");
+
         return svg.toString();
     }
 
@@ -229,13 +279,19 @@ public final class PotraceTracingService implements TracingService {
             DetailLevel detail
     ) throws ConversionException, IOException {
 
-        Path pbm = tempDir.resolve("layer-" + layer + ".pbm");
-        Path out = tempDir.resolve("layer-" + layer + ".svg");
-        Path log = tempDir.resolve("layer-" + layer + ".log");
+        Path pbm =
+                tempDir.resolve("layer-" + layer + ".pbm");
+
+        Path out =
+                tempDir.resolve("layer-" + layer + ".svg");
+
+        Path log =
+                tempDir.resolve("layer-" + layer + ".log");
 
         mask.writePbm(pbm);
 
         String color = hex(rgb);
+
         List<String> command = new ArrayList<>();
 
         command.add(potrace.toString());
@@ -252,34 +308,46 @@ public final class PotraceTracingService implements TracingService {
         command.add(out.toString());
         command.add(pbm.toString());
 
-        ProcessBuilder pb = new ProcessBuilder(command)
-                .directory(tempDir.toFile())
-                .redirectErrorStream(true)
-                .redirectOutput(log.toFile());
+        ProcessBuilder pb =
+                new ProcessBuilder(command)
+                        .directory(tempDir.toFile())
+                        .redirectErrorStream(true)
+                        .redirectOutput(log.toFile());
 
         Process process;
 
         try {
             process = pb.start();
+
         } catch (IOException e) {
             throw new ToolNotFoundException(
                     "Cannot start Potrace (" + potrace + "): "
-                            + e.getMessage(), e
+                            + e.getMessage(),
+                    e
             );
         }
 
         try {
-            if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            if (!process.waitFor(
+                    TIMEOUT_SECONDS,
+                    TimeUnit.SECONDS
+            )) {
                 process.destroyForcibly();
+
                 throw new ConversionException(
                         "Potrace timed out after "
-                                + TIMEOUT_SECONDS + " seconds."
+                                + TIMEOUT_SECONDS
+                                + " seconds."
                 );
             }
+
         } catch (InterruptedException e) {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
-            throw new CancellationException("Tracing cancelled");
+
+            throw new CancellationException(
+                    "Tracing cancelled"
+            );
         }
 
         int exit = process.exitValue();
@@ -287,11 +355,18 @@ public final class PotraceTracingService implements TracingService {
         if (exit != 0) {
             throw new ConversionException(
                     "Potrace failed (exit code "
-                            + exit + "): " + readQuietly(log)
+                            + exit
+                            + "): "
+                            + readQuietly(log)
             );
         }
 
-        String svg = Files.readString(out, StandardCharsets.UTF_8);
+        String svg =
+                Files.readString(
+                        out,
+                        StandardCharsets.UTF_8
+                );
+
         Files.deleteIfExists(pbm);
 
         Matcher group = GROUP.matcher(svg);
@@ -313,18 +388,24 @@ public final class PotraceTracingService implements TracingService {
 
         if (fill.find()) {
             attrs = fill.replaceFirst(
-                    Matcher.quoteReplacement("fill=\"" + color + "\"")
+                    Matcher.quoteReplacement(
+                            "fill=\"" + color + "\""
+                    )
             );
         } else {
             attrs = attrs + " fill=\"" + color + "\"";
         }
 
         Matcher vb = SVG_VIEWBOX.matcher(svg);
-        String viewBox = vb.find() ? vb.group(1) : null;
+
+        String viewBox =
+                vb.find() ? vb.group(1) : null;
 
         return new LayerResult(
                 viewBox,
-                "<g" + attrs + ">" + inner.trim() + "</g>"
+                "<g" + attrs + ">"
+                        + inner.trim()
+                        + "</g>"
         );
     }
 
@@ -340,22 +421,35 @@ public final class PotraceTracingService implements TracingService {
             return src;
         }
 
-        double scale = (double) maxDimension / longest;
-        int targetW = Math.max(1, (int) Math.round(w * scale));
-        int targetH = Math.max(1, (int) Math.round(h * scale));
+        double scale =
+                (double) maxDimension / longest;
+
+        int targetW =
+                Math.max(1, (int) Math.round(w * scale));
+
+        int targetH =
+                Math.max(1, (int) Math.round(h * scale));
 
         BufferedImage current = src;
+
         int cw = w;
         int ch = h;
 
-        while (cw / 2 >= targetW && ch / 2 >= targetH) {
+        while (cw / 2 >= targetW
+                && ch / 2 >= targetH) {
+
             cw /= 2;
             ch /= 2;
+
             current = resize(current, cw, ch);
         }
 
         if (cw != targetW || ch != targetH) {
-            current = resize(current, targetW, targetH);
+            current = resize(
+                    current,
+                    targetW,
+                    targetH
+            );
         }
 
         return current;
@@ -367,7 +461,9 @@ public final class PotraceTracingService implements TracingService {
             int h
     ) {
         BufferedImage dst = new BufferedImage(
-                w, h, BufferedImage.TYPE_INT_ARGB
+                w,
+                h,
+                BufferedImage.TYPE_INT_ARGB
         );
 
         Graphics2D g = dst.createGraphics();
@@ -377,11 +473,14 @@ public final class PotraceTracingService implements TracingService {
                     RenderingHints.KEY_INTERPOLATION,
                     RenderingHints.VALUE_INTERPOLATION_BILINEAR
             );
+
             g.setRenderingHint(
                     RenderingHints.KEY_RENDERING,
                     RenderingHints.VALUE_RENDER_QUALITY
             );
+
             g.drawImage(src, 0, 0, w, h, null);
+
         } finally {
             g.dispose();
         }
@@ -391,27 +490,39 @@ public final class PotraceTracingService implements TracingService {
 
     private static void checkCancelled() {
         if (Thread.currentThread().isInterrupted()) {
-            throw new CancellationException("Tracing cancelled");
+            throw new CancellationException(
+                    "Tracing cancelled"
+            );
         }
     }
 
     private static String hex(int rgb) {
         return String.format(
-                Locale.ROOT, "#%06x", rgb & 0xFFFFFF
+                Locale.ROOT,
+                "#%06x",
+                rgb & 0xFFFFFF
         );
     }
 
     private static String fmt(double value) {
-        return String.format(Locale.ROOT, "%.2f", value);
+        return String.format(
+                Locale.ROOT,
+                "%.2f",
+                value
+        );
     }
 
     private static String readQuietly(Path file) {
         try {
             String text = Files.readString(
-                    file, StandardCharsets.UTF_8
+                    file,
+                    StandardCharsets.UTF_8
             ).trim();
 
-            return text.isEmpty() ? "(no message)" : text;
+            return text.isEmpty()
+                    ? "(no message)"
+                    : text;
+
         } catch (IOException e) {
             return "(no message)";
         }
