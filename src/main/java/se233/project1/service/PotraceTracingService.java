@@ -1,3 +1,4 @@
+
 package se233.project1.service;
 
 import se233.project1.exception.ConversionException;
@@ -25,22 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Raster-to-SVG tracing with the Potrace command-line tool.
- * <p>
- * Potrace only understands two-color bitmaps, so the pipeline is:
- * <ol>
- *   <li>down-scale to the detail level's working size</li>
- *   <li>quantize to N colors ({@link ColorQuantizer})</li>
- *   <li>optionally pick the background color and drop it (Remove background)</li>
- *   <li>for each color layer build a <em>stacked</em> mask (all pixels of that color and of every
- *       later color), write it as PBM and run {@code potrace --svg}</li>
- *   <li>merge the layer groups into one SVG, painting layers in order. The first layer is emitted
- *       as a cover {@code <rect>} (not traced) unless the background is removed.</li>
- * </ol>
- * Stateless apart from the cached tool location, therefore thread-safe: several threads may call
- * {@link #trace} concurrently (each call uses its own temp directory and its own Potrace processes).
- */
 public final class PotraceTracingService implements TracingService {
 
     static {
@@ -50,8 +35,10 @@ public final class PotraceTracingService implements TracingService {
     private static final long TIMEOUT_SECONDS = 120;
     private static final Pattern SVG_VIEWBOX =
             Pattern.compile("<svg\\b[^>]*?viewBox=\"([^\"]+)\"", Pattern.DOTALL);
-    private static final Pattern GROUP = Pattern.compile("<g\\b([^>]*)>(.*?)</g>", Pattern.DOTALL);
-    private static final Pattern FILL_ATTR = Pattern.compile("fill=\"#[0-9a-fA-F]{6}\"");
+    private static final Pattern GROUP =
+            Pattern.compile("<g\\b([^>]*)>(.*?)</g>", Pattern.DOTALL);
+    private static final Pattern FILL_ATTR =
+            Pattern.compile("fill=\"#[0-9a-fA-F]{6}\"");
 
     private final NativeToolLocator locator;
     private final ColorQuantizer quantizer = new ColorQuantizer();
@@ -69,7 +56,8 @@ public final class PotraceTracingService implements TracingService {
     }
 
     @Override
-    public String trace(BufferedImage source, ConversionSettings settings) throws ConversionException {
+    public String trace(BufferedImage source, ConversionSettings settings)
+            throws ConversionException {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(settings, "settings");
 
@@ -79,92 +67,177 @@ public final class PotraceTracingService implements TracingService {
         BufferedImage work = downscaleIfNeeded(source, detail.maxDimension());
         checkCancelled();
 
-        QuantizedImage quantized = quantizer.quantize(work, settings.paletteSize(), settings.removeBackground());
+        boolean sourceHasTransparency = hasTransparentPixels(work);
+        QuantizedImage quantized = quantizer.quantize(
+                work,
+                settings.paletteSize(),
+                settings.removeBackground() || sourceHasTransparency
+        );
+
         boolean backgroundRemoved = false;
         if (settings.removeBackground()
-                && quantized.transparentRatio() < ColorAnalysisService.TRANSPARENCY_THRESHOLD) {
+                && quantized.transparentRatio()
+                < ColorAnalysisService.TRANSPARENCY_THRESHOLD) {
             int bg = analysis.findBackgroundIndex(quantized);
             if (bg >= 0) {
                 quantized = quantized.moveToFront(bg);
                 backgroundRemoved = true;
             }
         }
+
         checkCancelled();
 
         Path tempDir = null;
         try {
             tempDir = TempFileManager.createSubDir("trace-");
-            return buildSvg(potrace, tempDir, quantized, backgroundRemoved, detail,
-                    source.getWidth(), source.getHeight());
+            return buildSvg(
+                    potrace,
+                    tempDir,
+                    quantized,
+                    backgroundRemoved,
+                    detail,
+                    source.getWidth(),
+                    source.getHeight(),
+                    settings.removeBackground()
+            );
         } catch (IOException e) {
-            throw new ConversionException("I/O error while tracing: " + e.getMessage(), e);
+            throw new ConversionException(
+                    "I/O error while tracing: " + e.getMessage(), e
+            );
         } finally {
             TempFileManager.deleteRecursivelyQuietly(tempDir);
         }
     }
 
-    // ------------------------------------------------------------------
+    private static boolean hasTransparentPixels(BufferedImage image) {
+        if (!image.getColorModel().hasAlpha()) {
+            return false;
+        }
 
-    private String buildSvg(Path potrace, Path tempDir, QuantizedImage q, boolean backgroundRemoved,
-                            DetailLevel detail, int originalWidth, int originalHeight)
-            throws ConversionException, IOException {
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                if ((image.getRGB(x, y) >>> 24) < 128) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
-        // Layer 0 is a plain cover rectangle when it spans the whole image (no removed background,
-        // no transparent pixels); this avoids tracing a rectangle and keeps the SVG small.
-        boolean coverRect = !backgroundRemoved && q.paletteSize() > 0 && !q.hasTransparency();
-        int firstTracedLayer = (backgroundRemoved || coverRect) ? 1 : 0;
+    private String buildSvg(
+            Path potrace,
+            Path tempDir,
+            QuantizedImage q,
+            boolean backgroundRemoved,
+            DetailLevel detail,
+            int originalWidth,
+            int originalHeight,
+            boolean removeBackgroundRequested
+    ) throws ConversionException, IOException {
+
+        boolean opaqueBackground =
+                !backgroundRemoved
+                        && !removeBackgroundRequested
+                        && q.hasTransparency();
+
+        boolean coverRect =
+                !backgroundRemoved
+                        && q.paletteSize() > 0
+                        && !q.hasTransparency();
+
+        int firstTracedLayer =
+                (backgroundRemoved || coverRect) ? 1 : 0;
 
         List<LayerResult> layers = new ArrayList<>();
-        List<Integer> layerColors = new ArrayList<>();
+
         for (int layer = firstTracedLayer; layer < q.paletteSize(); layer++) {
             checkCancelled();
+
             BinaryMask mask = quantizer.stackedMask(q, layer);
             if (mask.isEmpty()) {
                 continue;
             }
-            LayerResult result = traceLayer(potrace, tempDir, mask, q.palette()[layer], layer, detail);
+
+            LayerResult result = traceLayer(
+                    potrace,
+                    tempDir,
+                    mask,
+                    q.palette()[layer],
+                    layer,
+                    detail
+            );
+
             if (result != null) {
                 layers.add(result);
-                layerColors.add(q.palette()[layer]);
             }
         }
 
         String viewBox = "0 0 " + q.width() + " " + q.height();
+
         for (LayerResult r : layers) {
             if (r.viewBox() != null) {
                 viewBox = r.viewBox();
                 break;
             }
         }
+
         String[] vb = viewBox.trim().split("[\\s,]+");
 
         StringBuilder svg = new StringBuilder(4096);
+
         svg.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n");
         svg.append("<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"")
-           .append(originalWidth).append("\" height=\"").append(originalHeight)
-           .append("\" viewBox=\"").append(viewBox.trim())
-           .append("\" preserveAspectRatio=\"xMidYMid meet\">\n");
-        if (coverRect) {
-            svg.append("<rect x=\"0\" y=\"0\" width=\"").append(vb.length >= 4 ? vb[2] : q.width())
-               .append("\" height=\"").append(vb.length >= 4 ? vb[3] : q.height())
-               .append("\" fill=\"").append(hex(q.palette()[0])).append("\"/>\n");
+                .append(originalWidth)
+                .append("\" height=\"")
+                .append(originalHeight)
+                .append("\" viewBox=\"")
+                .append(viewBox.trim())
+                .append("\" preserveAspectRatio=\"xMidYMid meet\">\n");
+
+        if (opaqueBackground) {
+            svg.append("<rect x=\"0\" y=\"0\" width=\"")
+                    .append(q.width())
+                    .append("\" height=\"")
+                    .append(q.height())
+                    .append("\" fill=\"#ffffff\"/>\n");
         }
+
+        if (coverRect) {
+            svg.append("<rect x=\"0\" y=\"0\" width=\"")
+                    .append(vb.length >= 4 ? vb[2] : q.width())
+                    .append("\" height=\"")
+                    .append(vb.length >= 4 ? vb[3] : q.height())
+                    .append("\" fill=\"")
+                    .append(hex(q.palette()[0]))
+                    .append("\"/>\n");
+        }
+
         for (LayerResult r : layers) {
             svg.append(r.groupMarkup()).append('\n');
         }
+
         svg.append("</svg>\n");
         return svg.toString();
     }
 
-    private LayerResult traceLayer(Path potrace, Path tempDir, BinaryMask mask, int rgb, int layer,
-                                   DetailLevel detail) throws ConversionException, IOException {
+    private LayerResult traceLayer(
+            Path potrace,
+            Path tempDir,
+            BinaryMask mask,
+            int rgb,
+            int layer,
+            DetailLevel detail
+    ) throws ConversionException, IOException {
+
         Path pbm = tempDir.resolve("layer-" + layer + ".pbm");
         Path out = tempDir.resolve("layer-" + layer + ".svg");
         Path log = tempDir.resolve("layer-" + layer + ".log");
+
         mask.writePbm(pbm);
 
         String color = hex(rgb);
         List<String> command = new ArrayList<>();
+
         command.add(potrace.toString());
         command.add("-s");
         command.add("-t");
@@ -185,58 +258,88 @@ public final class PotraceTracingService implements TracingService {
                 .redirectOutput(log.toFile());
 
         Process process;
+
         try {
             process = pb.start();
         } catch (IOException e) {
-            throw new ToolNotFoundException("Cannot start Potrace (" + potrace + "): " + e.getMessage(), e);
+            throw new ToolNotFoundException(
+                    "Cannot start Potrace (" + potrace + "): "
+                            + e.getMessage(), e
+            );
         }
+
         try {
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new ConversionException("Potrace timed out after " + TIMEOUT_SECONDS + " seconds.");
+                throw new ConversionException(
+                        "Potrace timed out after "
+                                + TIMEOUT_SECONDS + " seconds."
+                );
             }
         } catch (InterruptedException e) {
             process.destroyForcibly();
             Thread.currentThread().interrupt();
             throw new CancellationException("Tracing cancelled");
         }
+
         int exit = process.exitValue();
+
         if (exit != 0) {
-            throw new ConversionException("Potrace failed (exit code " + exit + "): " + readQuietly(log));
+            throw new ConversionException(
+                    "Potrace failed (exit code "
+                            + exit + "): " + readQuietly(log)
+            );
         }
 
         String svg = Files.readString(out, StandardCharsets.UTF_8);
         Files.deleteIfExists(pbm);
 
         Matcher group = GROUP.matcher(svg);
+
         if (!group.find()) {
-            throw new ConversionException("Unexpected Potrace output (no <g> element found).");
+            throw new ConversionException(
+                    "Unexpected Potrace output (no <g> element found)."
+            );
         }
+
         String attrs = group.group(1);
         String inner = group.group(2);
+
         if (!inner.contains("<path")) {
-            return null; // nothing survived the speckle filter
+            return null;
         }
+
         Matcher fill = FILL_ATTR.matcher(attrs);
+
         if (fill.find()) {
-            attrs = fill.replaceFirst(Matcher.quoteReplacement("fill=\"" + color + "\""));
+            attrs = fill.replaceFirst(
+                    Matcher.quoteReplacement("fill=\"" + color + "\"")
+            );
         } else {
             attrs = attrs + " fill=\"" + color + "\"";
         }
+
         Matcher vb = SVG_VIEWBOX.matcher(svg);
         String viewBox = vb.find() ? vb.group(1) : null;
-        return new LayerResult(viewBox, "<g" + attrs + ">" + inner.trim() + "</g>");
+
+        return new LayerResult(
+                viewBox,
+                "<g" + attrs + ">" + inner.trim() + "</g>"
+        );
     }
 
-    // ------------------------------------------------------------------
-
-    private static BufferedImage downscaleIfNeeded(BufferedImage src, int maxDimension) {
+    private static BufferedImage downscaleIfNeeded(
+            BufferedImage src,
+            int maxDimension
+    ) {
         int w = src.getWidth();
         int h = src.getHeight();
         int longest = Math.max(w, h);
+
         if (longest <= maxDimension) {
             return src;
         }
+
         double scale = (double) maxDimension / longest;
         int targetW = Math.max(1, (int) Math.round(w * scale));
         int targetH = Math.max(1, (int) Math.round(h * scale));
@@ -244,27 +347,45 @@ public final class PotraceTracingService implements TracingService {
         BufferedImage current = src;
         int cw = w;
         int ch = h;
-        while (cw / 2 >= targetW && ch / 2 >= targetH) { // halve repeatedly for better quality
+
+        while (cw / 2 >= targetW && ch / 2 >= targetH) {
             cw /= 2;
             ch /= 2;
             current = resize(current, cw, ch);
         }
+
         if (cw != targetW || ch != targetH) {
             current = resize(current, targetW, targetH);
         }
+
         return current;
     }
 
-    private static BufferedImage resize(BufferedImage src, int w, int h) {
-        BufferedImage dst = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    private static BufferedImage resize(
+            BufferedImage src,
+            int w,
+            int h
+    ) {
+        BufferedImage dst = new BufferedImage(
+                w, h, BufferedImage.TYPE_INT_ARGB
+        );
+
         Graphics2D g = dst.createGraphics();
+
         try {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(
+                    RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR
+            );
+            g.setRenderingHint(
+                    RenderingHints.KEY_RENDERING,
+                    RenderingHints.VALUE_RENDER_QUALITY
+            );
             g.drawImage(src, 0, 0, w, h, null);
         } finally {
             g.dispose();
         }
+
         return dst;
     }
 
@@ -275,7 +396,9 @@ public final class PotraceTracingService implements TracingService {
     }
 
     private static String hex(int rgb) {
-        return String.format(Locale.ROOT, "#%06x", rgb & 0xFFFFFF);
+        return String.format(
+                Locale.ROOT, "#%06x", rgb & 0xFFFFFF
+        );
     }
 
     private static String fmt(double value) {
@@ -284,7 +407,10 @@ public final class PotraceTracingService implements TracingService {
 
     private static String readQuietly(Path file) {
         try {
-            String text = Files.readString(file, StandardCharsets.UTF_8).trim();
+            String text = Files.readString(
+                    file, StandardCharsets.UTF_8
+            ).trim();
+
             return text.isEmpty() ? "(no message)" : text;
         } catch (IOException e) {
             return "(no message)";
